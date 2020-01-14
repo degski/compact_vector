@@ -27,12 +27,8 @@
 #include <cstdlib>
 #include <cstring>
 
-#include <array>
-#include <iterator>
 #include <random>
 #include <sax/iostream.hpp>
-#include <type_traits>
-#include <utility>
 
 #include <sax/splitmix.hpp>
 #include <sax/uniform_int_distribution.hpp>
