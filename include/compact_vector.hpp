@@ -36,7 +36,7 @@
 #include <type_traits>
 #include <utility>
 
-// costumization point.
+// Costumization point.
 #ifndef USE_MIMALLOC
 #    define USE_MIMALLOC true
 #    ifndef USE_MIMALLOC_LTO
@@ -51,13 +51,16 @@
 
 namespace sax {
 namespace detail::cv {
+
 #if USE_MIMALLOC
 [[nodiscard]] inline void * malloc ( std::size_t size ) noexcept { return mi_malloc ( size ); }
 [[nodiscard]] inline void * zalloc ( std::size_t size ) noexcept { return mi_zalloc ( size ); }
 [[nodiscard]] inline void * calloc ( std::size_t num, std::size_t size ) noexcept { return mi_calloc ( num, size ); }
 [[nodiscard]] inline void * realloc ( void * ptr, std::size_t new_size ) noexcept { return mi_realloc ( ptr, new_size ); }
 inline void free ( void * ptr ) noexcept { mi_free ( ptr ); }
+
 namespace {
+
 #    if _WIN32
 // Set eager region commit on Windows.
 inline bool const windows_eager_region_commit = [] {
@@ -67,18 +70,13 @@ inline bool const windows_eager_region_commit = [] {
 #    endif
 } // namespace
 #else
-[[nodiscard]] inline void * malloc ( std::size_t size ) noexcept {
-    void * p = std::malloc ( size );
-    return p;
-}
+[[nodiscard]] inline void * malloc ( std::size_t size ) noexcept { return std::malloc ( size ); }
 [[nodiscard]] inline void * zalloc ( std::size_t size ) noexcept { return std::calloc ( 1u, size ); }
 [[nodiscard]] inline void * calloc ( std::size_t num, std::size_t size ) noexcept { return std::calloc ( num, size ); }
-[[nodiscard]] inline void * realloc ( void * ptr, std::size_t new_size ) noexcept {
-    void * p = std::realloc ( ptr, new_size );
-    return p;
-}
+[[nodiscard]] inline void * realloc ( void * ptr, std::size_t new_size ) noexcept { return std::realloc ( ptr, new_size ); }
 inline void free ( void * ptr ) noexcept { std::free ( ptr ); }
 #endif
+
 template<typename Type, typename SizeType = int>
 struct params {
 
