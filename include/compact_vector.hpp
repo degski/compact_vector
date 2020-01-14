@@ -39,13 +39,12 @@
 // costumization point.
 #ifndef USE_MIMALLOC
 #    define USE_MIMALLOC true
-#endif
-
-#if USE_MIMALLOC
-#    if defined( _DEBUG )
-#        define USE_MIMALLOC_LTO false
-#    else
-#        define USE_MIMALLOC_LTO false
+#    ifndef USE_MIMALLOC_LTO
+#        if defined( _DEBUG )
+#            define USE_MIMALLOC_LTO false
+#        else
+#            define USE_MIMALLOC_LTO true
+#        endif
 #    endif
 #    include <mimalloc.h>
 #endif
