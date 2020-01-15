@@ -57,7 +57,7 @@ void emplace_back_random ( typename Container::size_type range_ ) noexcept {
     using value_type = typename Container::value_type;
     using size_type  = typename Container::size_type;
     sax::splitmix64 gen;
-    for ( int i = 0; i < 1'000; ++i ) {
+    for ( int i = 0; i < 10; ++i ) {
         size_type const is =
             sax::uniform_int_distribution<size_type> ( size_type{ 0 }, static_cast<size_type> ( range_ - 1 ) ) ( gen );
         Container data ( static_cast<size_type> ( is ) );
@@ -69,7 +69,7 @@ void emplace_back_random ( typename Container::size_type range_ ) noexcept {
 
 void test_eb ( ) {
     using Con = sax::compact_vector<int, int>;
-    for ( int i = 4; i <= 65'536; i <<= 1 )
+    for ( int i = 4; i <= 65'536; i <<= 2 )
         emplace_back_random<Con> ( i );
 }
 

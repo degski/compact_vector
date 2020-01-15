@@ -27,7 +27,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 
 #include <algorithm>
 #include <sax/iostream.hpp>
@@ -120,13 +119,13 @@ class compact_vector {
 
     // Construct.
 
-    compact_vector ( ) noexcept {}
+    explicit compact_vector ( ) noexcept {}
     compact_vector ( size_type const size_ ) noexcept {
         void_ptr p = detail::cv::malloc ( sizeof ( params ) + size_ * sizeof ( value_type ) );
         new ( p ) params{ size_, size_ };
         m_data = ptr_mem ( p );
-        for ( auto & value_ref : *this ) // default construct values.
-            new ( &value_ref ) value_type{ };
+        std::for_each ( begin ( ), end ( ),
+                        [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
     }
     compact_vector ( compact_vector const & cv_ ) {
         if ( cv_.m_data ) {
@@ -134,7 +133,7 @@ class compact_vector {
             void_ptr p      = detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) );
             new ( p ) params{ size, size };
             m_data = ptr_mem ( p );
-            std::memcpy ( m_data, cv_.m_data, size * sizeof ( value_type ) );
+            std::copy ( std::begin ( cv_ ), std::end ( cv_ ), begin ( ) );
         }
     }
     compact_vector ( compact_vector && cv_ ) noexcept { swap ( cv_ ); }
@@ -160,7 +159,7 @@ class compact_vector {
                 m_data     = ptr_mem ( p );
                 new ( p ) params{ size, size };
             }
-            std::memcpy ( m_data, rhs_.m_data, size * sizeof ( value_type ) );
+            std::copy ( std::begin ( rhs_ ), std::end ( rhs_ ), std::begin ( *this ) );
         }
         else {
             release ( );
@@ -177,16 +176,14 @@ class compact_vector {
 
     void clear ( ) {
         if ( m_data ) {
-            for ( auto & v : *this )
-                v.~Type ( );
+            std::for_each ( begin ( ), end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
             size_ref ( ) = 0;
         }
     }
 
     void release ( ) noexcept {
         if ( m_data ) {
-            for ( auto & v : *this )
-                v.~Type ( );
+            std::for_each ( begin ( ), end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
             detail::cv::free ( mem_ptr ( m_data ) );
             m_data = nullptr;
         }
@@ -206,6 +203,26 @@ class compact_vector {
         }
     }
 
+    void resize ( size_type new_size_ ) { // TODO
+        if ( m_data ) {
+            auto size = size_ref ( );
+            if ( capacity_ref ( ) < new_size_ ) {
+                params_ref ( ) = { new_size_, new_size_ };
+                m_data =
+                    ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + new_size_ * sizeof ( value_type ) ) );
+                std::for_each ( begin ( ) + size, end ( ), [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } );
+            }
+            else {
+            }
+        }
+        else {
+            m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) );
+            new ( m_data ) params{ new_size_, new_size_ };
+            std::for_each ( begin ( ), end ( ),
+                            [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
+        }
+    }
+
     // Access.
 
     [[nodiscard]] const_reference front ( ) const noexcept {
@@ -220,7 +237,7 @@ class compact_vector {
     }
     [[nodiscard]] reference back ( ) noexcept { return const_cast<reference> ( std::as_const ( *this ).back ( ) ); }
 
-    [[nodiscard]] const_reference at ( size_type const i_ ) const {
+    [[nodiscard]] const_reference at ( size_type const i_ ) const { // TODO add index value to message.
         if ( i_ < size_type{ 0 } )
             throw std::runtime_error ( "compact_vector access error: negative index" );
         if ( i_ >= static_cast<size_type> ( size_ref ( ) ) )
@@ -299,8 +316,19 @@ class compact_vector {
 
     // Emplace/Pop.
 
+    private:
     template<typename... Args>
-    [[maybe_unused]] reference emplace_back ( Args &&... args_ ) noexcept {
+    [[maybe_unused]] reference construct ( Args &&... args_ ) {
+        void_ptr const p = detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) );
+        new ( p ) params{ default_allocation_size, 1 };
+        m_data = ptr_mem ( p );
+        assert ( size ( ) < capacity ( ) );
+        return *new ( m_data ) value_type{ std::forward<Args> ( args_ )... };
+    }
+
+    public:
+    template<typename... Args>
+    [[maybe_unused]] reference emplace_back ( Args &&... args_ ) {
         if ( m_data ) {                             // not allocate, maybe relocate.
             if ( size_ref ( ) == capacity_ref ( ) ) // relocate.
                 m_data = ptr_mem (
@@ -309,13 +337,11 @@ class compact_vector {
             return *new ( m_data + size_ref ( )++ ) value_type{ std::forward<Args> ( args_ )... };
         }
         else { // allocate.
-            void_ptr const p = detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) );
-            new ( p ) params{ default_allocation_size, 1 };
-            m_data = ptr_mem ( p );
-            assert ( size ( ) < capacity ( ) );
-            return *new ( m_data ) value_type{ std::forward<Args> ( args_ )... };
+            return construct ( std::forward<Args> ( args_ )... );
         }
     }
+
+    [[maybe_unused]] reference push_back ( const_reference v_ ) { return emplace_back ( value_type{ v_ } ); }
 
     void pop_back ( ) noexcept {
         assert ( size_ref ( ) );
@@ -341,7 +367,7 @@ class compact_vector {
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, compact_vector const & m_ ) noexcept {
         for ( auto const & e : m_ )
-            out_ << e << ' ';
+            out_ << e << sp; // A wide- or narrow-string space, as appropriate.
         return out_;
     }
 
@@ -390,8 +416,14 @@ class compact_vector {
         return reinterpret_cast<void_ptr> ( reinterpret_cast<char *> ( mem_ ) - 2 * sizeof ( size_type ) );
     }
     [[nodiscard]] inline pointer ptr_mem ( void_ptr ptr_ ) const noexcept {
+        std::cout << "pa " << pointer_alignment ( ptr_ ) << nl;
         assert ( ptr_ );
         return reinterpret_cast<pointer> ( reinterpret_cast<char *> ( ptr_ ) + 2 * sizeof ( size_type ) );
+    }
+
+    // Pointer alignment.
+    static inline int pointer_alignment ( void_ptr ptr_ ) noexcept {
+        return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
     }
 
     pointer m_data = nullptr;
