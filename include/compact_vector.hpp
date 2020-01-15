@@ -48,14 +48,15 @@
 #endif
 
 namespace sax {
+
 namespace detail::cv {
 
 #if USE_MIMALLOC
-[[nodiscard]] inline void * malloc ( std::size_t size ) noexcept { return mi_malloc ( size ); }
-[[nodiscard]] inline void * zalloc ( std::size_t size ) noexcept { return mi_zalloc ( size ); }
-[[nodiscard]] inline void * calloc ( std::size_t num, std::size_t size ) noexcept { return mi_calloc ( num, size ); }
-[[nodiscard]] inline void * realloc ( void * ptr, std::size_t new_size ) noexcept { return mi_realloc ( ptr, new_size ); }
-inline void free ( void * ptr ) noexcept { mi_free ( ptr ); }
+[[nodiscard]] inline void * malloc ( std::size_t size_ ) noexcept { return mi_malloc ( size_ ); }
+[[nodiscard]] inline void * zalloc ( std::size_t size_ ) noexcept { return mi_zalloc ( size_ ); }
+[[nodiscard]] inline void * calloc ( std::size_t num_, std::size_t size_ ) noexcept { return mi_calloc ( num_, size_ ); }
+[[nodiscard]] inline void * realloc ( void * ptr_, std::size_t new_size_ ) noexcept { return mi_realloc ( ptr_, new_size_ ); }
+inline void free ( void * ptr_ ) noexcept { mi_free ( ptr_ ); }
 
 namespace {
 
@@ -66,13 +67,15 @@ inline bool const windows_eager_region_commit = [] {
     return mi_option_get ( mi_option_eager_region_commit );
 }( );
 #    endif
+
 } // namespace
+
 #else
-[[nodiscard]] inline void * malloc ( std::size_t size ) noexcept { return std::malloc ( size ); }
-[[nodiscard]] inline void * zalloc ( std::size_t size ) noexcept { return std::calloc ( 1u, size ); }
-[[nodiscard]] inline void * calloc ( std::size_t num, std::size_t size ) noexcept { return std::calloc ( num, size ); }
-[[nodiscard]] inline void * realloc ( void * ptr, std::size_t new_size ) noexcept { return std::realloc ( ptr, new_size ); }
-inline void free ( void * ptr ) noexcept { std::free ( ptr ); }
+[[nodiscard]] inline void * malloc ( std::size_t size_ ) noexcept { return std::malloc ( size_ ); }
+[[nodiscard]] inline void * zalloc ( std::size_t size_ ) noexcept { return std::calloc ( 1u, size_ ); }
+[[nodiscard]] inline void * calloc ( std::size_t num_, std::size_t size_ ) noexcept { return std::calloc ( num_, size_ ); }
+[[nodiscard]] inline void * realloc ( void * ptr_, std::size_t new_size_ ) noexcept { return std::realloc ( ptr_, new_size_ ); }
+inline void free ( void * ptr_ ) noexcept { std::free ( ptr_ ); }
 #endif
 
 template<typename Type, typename SizeType = int>
@@ -86,11 +89,13 @@ struct params {
 
     size_type capacity, size;
 };
+
 } // namespace detail::cv
 
 template<typename Type, typename SizeType = int, SizeType max_allocation_size = std::numeric_limits<SizeType>::max ( ),
          SizeType default_allocation_size = 1>
 class compact_vector {
+
     public:
     using value_type    = Type;
     using pointer       = value_type *;
@@ -118,8 +123,8 @@ class compact_vector {
     compact_vector ( ) noexcept {}
     compact_vector ( size_type const size_ ) noexcept {
         void_ptr p = detail::cv::malloc ( sizeof ( params ) + size_ * sizeof ( value_type ) );
-        m_data     = ptr_mem ( p );
         new ( p ) params{ size_, size_ };
+        m_data = ptr_mem ( p );
         for ( auto & value_ref : *this ) // default construct values.
             new ( &value_ref ) value_type{ };
     }
@@ -127,8 +132,8 @@ class compact_vector {
         if ( cv_.m_data ) {
             auto const size = cv_.size ( );
             void_ptr p      = detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) );
-            m_data          = ptr_mem ( p );
             new ( p ) params{ size, size };
+            m_data = ptr_mem ( p );
             std::memcpy ( m_data, cv_.m_data, size * sizeof ( value_type ) );
         }
     }
@@ -304,8 +309,9 @@ class compact_vector {
             return *new ( m_data + size_ref ( )++ ) value_type{ std::forward<Args> ( args_ )... };
         }
         else { // allocate.
-            m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) ) );
-            new ( m_data ) params{ default_allocation_size, 1 };
+            void_ptr const p = detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) );
+            new ( p ) params{ default_allocation_size, 1 };
+            m_data = ptr_mem ( p );
             assert ( size ( ) < capacity ( ) );
             return *new ( m_data ) value_type{ std::forward<Args> ( args_ )... };
         }
