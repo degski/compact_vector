@@ -24,4 +24,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\_clang-format" />
+    <None Include="..\LICENSE.md" />
+    <None Include="..\README.md" />
+  </ItemGroup>
 </Project>

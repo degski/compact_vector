@@ -1,7 +1,7 @@
 
 // MIT License
 //
-// Copyright (c) 2019 degski
+// Copyright (c) 2020 degski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -356,10 +356,16 @@ class compact_vector {
 
     // Erase.
 
+    void erase ( iterator & i_ ) noexcept {
+        value_type & r = m_data[ --size_ref ( ) ];
+        *i_            = r;
+        r.~Type ( );
+    }
+
     void erase ( size_type const i_ ) noexcept {
-        auto & s     = --size_ref ( );
-        m_data[ i_ ] = m_data[ s ];
-        m_data[ s ].~Type ( );
+        value_type & r = m_data[ --size_ref ( ) ];
+        m_data[ i_ ]   = r;
+        r.~Type ( );
     }
 
     // Output.

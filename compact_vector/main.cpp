@@ -1,7 +1,7 @@
 
 // MIT License
 //
-// Copyright (c) 2019 degski
+// Copyright (c) 2020 degski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -73,7 +73,7 @@ void test_eb ( ) {
         emplace_back_random<Con> ( i );
 }
 
-int main ( ) {
+int main786 ( ) {
     std::exception_ptr eptr;
     try {
         test_eb ( );
@@ -82,5 +82,234 @@ int main ( ) {
         eptr = std::current_exception ( ); // Capture.
     }
     handleEptr ( eptr );
+    return EXIT_SUCCESS;
+}
+
+#include <immintrin.h>
+
+#include <chrono>
+
+void test ( ) {
+
+    const int sz = 1'024;
+    float * mas  = ( float * ) _mm_malloc ( sz * sizeof ( float ), 32 );
+    float * tar  = ( float * ) _mm_malloc ( sz * sizeof ( float ), 32 );
+    float a      = 0;
+    std::generate ( mas, mas + sz, [ & ] ( ) { return ++a; } );
+
+    const int nn = 1'000'000; // Number of iteration in tester loops
+    std::chrono::time_point<std::chrono::system_clock> start1, end1, start2, end2, start3, end3;
+
+    // std::copy testing
+    start1 = std::chrono::system_clock::now ( );
+    for ( int i = 0; i < nn; ++i )
+        std::copy ( mas, mas + sz, tar );
+    // std::memcpy ( tar, mas, sz * sizeof ( float ) );
+    // std::strncpy ( ( char * ) tar, ( char * ) mas, sz * sizeof ( float ) );
+    end1           = std::chrono::system_clock::now ( );
+    float elapsed1 = std::chrono::duration_cast<std::chrono::microseconds> ( end1 - start1 ).count ( );
+
+    // SSE-copy testing
+    start2 = std::chrono::system_clock::now ( );
+    for ( int i = 0; i < nn; ++i ) {
+        auto _mas = mas;
+        auto _tar = tar;
+        for ( ; _mas != mas + sz; _mas += 4, _tar += 4 ) {
+            __m128 buffer = _mm_load_ps ( _mas );
+            _mm_store_ps ( _tar, buffer );
+        }
+    }
+    end2           = std::chrono::system_clock::now ( );
+    float elapsed2 = std::chrono::duration_cast<std::chrono::microseconds> ( end2 - start2 ).count ( );
+
+    // AVX-copy testing
+    start3 = std::chrono::system_clock::now ( );
+    for ( int i = 0; i < nn; ++i ) {
+        auto _mas = mas;
+        auto _tar = tar;
+        for ( ; _mas != mas + sz; _mas += 8, _tar += 8 ) {
+            __m256 buffer = _mm256_load_ps ( _mas );
+            _mm256_store_ps ( _tar, buffer );
+        }
+    }
+    end3           = std::chrono::system_clock::now ( );
+    float elapsed3 = std::chrono::duration_cast<std::chrono::microseconds> ( end3 - start3 ).count ( );
+
+    std::cout << "serial - " << elapsed1 << ", SSE - " << elapsed2 << ", AVX - " << elapsed3
+              << "\nSSE gain: " << elapsed1 / elapsed2 << "\nAVX gain: " << elapsed1 / elapsed3 << nl;
+
+    _mm_free ( mas );
+    _mm_free ( tar );
+}
+
+int main6578 ( ) {
+
+    for ( int i = 0; i < 3; ++i )
+        test ( );
+
+    return EXIT_SUCCESS;
+}
+
+#include <memory>
+
+template<std::size_t Alignment>
+class Aligned {
+    public:
+    void * operator new ( std::size_t size ) {
+        std::size_t space   = size + ( Alignment - 1 );
+        void * ptr          = malloc ( space + sizeof ( void * ) );
+        void * original_ptr = ptr;
+
+        char * ptr_bytes = static_cast<char *> ( ptr );
+        ptr_bytes += sizeof ( void * );
+        ptr = static_cast<void *> ( ptr_bytes );
+
+        ptr = std::align ( Alignment, size, ptr, space );
+
+        ptr_bytes = static_cast<char *> ( ptr );
+        ptr_bytes -= sizeof ( void * );
+        std::memcpy ( ptr_bytes, &original_ptr, sizeof ( void * ) );
+
+        return ptr;
+    }
+
+    void operator delete ( void * ptr ) {
+        char * ptr_bytes = static_cast<char *> ( ptr );
+        ptr_bytes -= sizeof ( void * );
+
+        void * original_ptr;
+        std::memcpy ( &original_ptr, ptr_bytes, sizeof ( void * ) );
+
+        std::free ( original_ptr );
+    }
+};
+
+// Use it like this :
+
+class Camera : public Aligned<16> {};
+
+template<typename Type>
+inline Type * memcpyAVX ( Type * destination, Type * source, size_t count ) {
+    unsigned int firstLoopCount = ( ( count * sizeof ( Type ) ) / sizeof ( __m256 ) );
+
+    __m256 avxRegister, *pre;
+
+    float * a = reinterpret_cast<float *> ( reinterpret_cast<void *> ( destination ) );
+    float * b = reinterpret_cast<float *> ( reinterpret_cast<void *> ( source ) );
+
+    for ( unsigned int i = 0; i < firstLoopCount; i += ( sizeof ( __m256 ) / sizeof ( Type ) ) ) {
+        avxRegister = _mm256_load_ps ( b );
+        _mm256_store_ps ( a, avxRegister );
+
+        a += 8;
+        b += 8;
+    }
+
+    return destination;
+}
+
+#include <iostream>
+using std::cout;
+using std::endl;
+
+#include <emmintrin.h>
+#include <malloc.h>
+#include <time.h>
+#include <string.h>
+
+#define ENABLE_PREFETCH
+
+#define f_vector __m128d
+#define i_ptr size_t
+inline void swap_block ( f_vector * A, f_vector * B, i_ptr L ) {
+    //  To be super-optimized later.
+
+    f_vector * stop = A + L;
+
+    do {
+        f_vector tmpA = *A;
+        f_vector tmpB = *B;
+        *A++          = tmpB;
+        *B++          = tmpA;
+    } while ( A < stop );
+}
+void transpose_even ( f_vector * T, i_ptr block, i_ptr x ) {
+    //  Transposes T.
+    //  T contains x columns and x rows.
+    //  Each unit is of size (block * sizeof(f_vector)) bytes.
+
+    // Conditions:
+    //  - 0 < block
+    //  - 1 < x
+
+    i_ptr row_size  = block * x;
+    i_ptr iter_size = row_size + block;
+
+    //  End of entire matrix.
+    f_vector * stop_T = T + row_size * x;
+    f_vector * end    = stop_T - row_size;
+
+    //  Iterate each row.
+    f_vector * y_iter = T;
+    do {
+        //  Iterate each column.
+        f_vector * ptr_x = y_iter + block;
+        f_vector * ptr_y = y_iter + row_size;
+
+        do {
+
+#ifdef ENABLE_PREFETCH
+            _mm_prefetch ( ( char * ) ( ptr_y + row_size ), _MM_HINT_T0 );
+#endif
+
+            swap_block ( ptr_x, ptr_y, block );
+
+            ptr_x += block;
+            ptr_y += row_size;
+        } while ( ptr_y < stop_T );
+
+        y_iter += iter_size;
+    } while ( y_iter < end );
+}
+int main785 ( ) {
+
+    i_ptr dimension = 4096;
+    i_ptr block     = 16;
+
+    i_ptr words = block * dimension * dimension;
+    i_ptr bytes = words * sizeof ( f_vector );
+
+    cout << "bytes = " << bytes << endl;
+    //    system("pause");
+
+    f_vector * T = ( f_vector * ) _mm_malloc ( bytes, 16 );
+    if ( T == NULL ) {
+        cout << "Memory Allocation Failure" << endl;
+        system ( "pause" );
+        exit ( 1 );
+    }
+    memset ( T, 0, bytes );
+
+    //  Perform in-place data transpose
+    cout << "Starting Data Transpose...   ";
+    clock_t start = clock ( );
+    transpose_even ( T, block, dimension );
+    clock_t end = clock ( );
+
+    cout << "Done" << endl;
+    cout << "Time: " << ( double ) ( end - start ) / CLOCKS_PER_SEC << " seconds" << endl;
+
+    _mm_free ( T );
+    system ( "pause" );
+
+    return EXIT_SUCCESS;
+}
+
+int main ( ) {
+
+    // std::wcout << sax::fg::wmagenta << sax::winvert_colors << L"This is magenta" << sax::wdefault_colors << nl;
+
+    std::cout << sax::fg::bright_magenta << "This is coloured" << sax::reset << nl;
+
     return EXIT_SUCCESS;
 }
