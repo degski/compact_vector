@@ -344,17 +344,51 @@ class compact_vector {
 
     // Erase.
 
+    private:
+    struct destructed_after_exit final {
+
+        destructed_after_exit ( value_type & r_ ) noexcept : ref{ r_ } {}
+
+        ~destructed_after_exit ( ) { reference.~Type ( ); }
+
+        destructed_after_exit ( ) noexcept                      = delete;
+        destructed_after_exit ( destructed_after_exit const & ) = delete;
+        destructed_after_exit ( destructed_after_exit && )      = delete;
+
+        destructed_after_exit & operator= ( destructed_after_exit const & ) = delete;
+        destructed_after_exit & operator= ( destructed_after_exit && ) noexcept = delete;
+
+        value_type & ref;
+    };
+
+    public:
+    [[maybe_unused]] value_type unordered_erase ( iterator & i_ ) noexcept {
+        destructed_after_exit back{ m_data[ --size_ref ( ) ] };
+        return std::exchange ( *i_, back.ref );
+    }
+
+    [[maybe_unused]] value_type unordered_erase ( size_type const i_ ) noexcept {
+        destructed_after_exit back{ m_data[ --size_ref ( ) ] };
+        return std::exchange ( m_data[ i_ ], back.ref );
+    }
+
+    /*
+
     void erase ( iterator & i_ ) noexcept {
         value_type & r = m_data[ --size_ref ( ) ];
         *i_            = r;
         r.~Type ( );
     }
 
-    void erase ( size_type const i_ ) noexcept {
+    [[maybe_unused]] value_type erase ( size_type const i_ ) noexcept {
         value_type & r = m_data[ --size_ref ( ) ];
+        value_type v   = m_data[ i_ ];
         m_data[ i_ ]   = r;
         r.~Type ( );
+        return v;
     }
+
+    */
 
     // Output.
 

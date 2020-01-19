@@ -81,8 +81,6 @@ int main ( ) {
     std::exception_ptr eptr;
     try {
 
-        /*
-
         sax::compact_vector<int> v;
 
         v.push_back ( 1 );
@@ -97,9 +95,13 @@ int main ( ) {
         std::cout << v.size ( ) << nl;
         std::cout << v.capacity ( ) << nl;
 
-        */
+        std::cout << v.erase ( 0 ) << nl;
 
-        test_eb ( );
+        for ( auto i : v )
+            std::cout << i << ' ';
+        std::cout << nl;
+
+        // test_eb ( );
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.
