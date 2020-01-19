@@ -33,6 +33,8 @@
 #include <sax/splitmix.hpp>
 #include <sax/uniform_int_distribution.hpp>
 
+#define USE_MIMALLC false
+
 #include "compact_vector.hpp"
 
 // -fsanitize=address

@@ -190,14 +190,12 @@ class compact_vector {
     void reserve ( size_type cap_ ) {
         cap_ = std::min ( max_allocation_size, cap_ ); // clamp.
         if ( m_data ) {
-            if ( cap_ > capacity_ref ( ) ) {
-                capacity_ref ( ) = cap_;
-                m_data = ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + cap_ * sizeof ( value_type ) ) );
-            }
+            if ( cap_ > capacity_ref ( ) )
+                m_data = ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + ( capacity_ref ( ) = cap_ ) *
+                                                                                                     sizeof ( value_type ) ) );
         }
         else {
-            new ( ( m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) ) ) )
-                params{ cap_, 0 };
+            m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) ) params{ cap_, 0 } );
         }
     }
 
@@ -214,8 +212,8 @@ class compact_vector {
             }
         }
         else {
-            new ( ( m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) ) ) )
-                params{ new_size_, new_size_ };
+            m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) )
+                                   params{ new_size_, new_size_ } );
             std::for_each ( begin ( ), end ( ),
                             [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
         }
@@ -331,22 +329,7 @@ class compact_vector {
         }
     }
 
-    [[maybe_unused]] reference push_back ( const_reference v_ ) {
-        if ( m_data ) {                               // not allocate, maybe relocate.
-            if ( size_ref ( ) == capacity_ref ( ) ) { // relocate.
-                std::cout << "rel" << nl;
-                m_data = ptr_mem (
-                    detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + set_new_capacity ( ) * sizeof ( value_type ) ) );
-            }
-            assert ( size ( ) < capacity ( ) );
-            return *new ( m_data + size_ref ( )++ ) value_type{ v_ };
-        }
-        else { // allocate.
-            return *new ( ( m_data = ptr_mem (
-                                new ( detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) ) )
-                                    params{ default_allocation_size, 1 } ) ) ) value_type{ v_ };
-        }
-    }
+    [[maybe_unused]] reference push_back ( const_reference v_ ) { return emplace_back ( value_type{ v_ } ); }
 
     void pop_back ( ) noexcept {
         assert ( size_ref ( ) );
