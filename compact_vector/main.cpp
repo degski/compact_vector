@@ -37,8 +37,8 @@
 
 // -fsanitize=address
 /*
-C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan_cxx-x86_64.lib
-C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan-preinit-x86_64.lib
+C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan_cxx-x86_64.lib;
+C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan-preinit-x86_64.lib;
 C:\Program Files\LLVM\lib\clang\10.0.0\lib\windows\clang_rt.asan-x86_64.lib
 */
 
@@ -69,19 +69,41 @@ void emplace_back_random ( typename Container::size_type range_ ) noexcept {
 
 void test_eb ( ) {
     using Con = sax::compact_vector<int, int>;
-    for ( int i = 4; i <= 65'536; i <<= 2 )
-        emplace_back_random<Con> ( i );
+    for ( int r = 0; r < 1'000; r++ )
+        for ( int i = 4; i <= 65'536 * 64; i <<= 2 )
+            emplace_back_random<Con> ( i );
 }
 
-int main786 ( ) {
+int main ( ) {
+
     std::exception_ptr eptr;
     try {
+
+        /*
+
+        sax::compact_vector<int> v;
+
+        v.push_back ( 1 );
+        v.push_back ( 11 );
+        v.push_back ( 111 );
+        v.push_back ( 1111 );
+
+        for ( auto i : v )
+            std::cout << i << ' ';
+        std::cout << nl;
+
+        std::cout << v.size ( ) << nl;
+        std::cout << v.capacity ( ) << nl;
+
+        */
+
         test_eb ( );
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.
     }
     handleEptr ( eptr );
+
     return EXIT_SUCCESS;
 }
 
@@ -305,7 +327,7 @@ int main785 ( ) {
     return EXIT_SUCCESS;
 }
 
-int main ( ) {
+int main678678 ( ) {
 
     // std::wcout << sax::fg::wmagenta << sax::winvert_colors << L"This is magenta" << sax::wdefault_colors << nl;
 

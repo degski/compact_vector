@@ -115,24 +115,23 @@ class compact_vector {
     using void_ptr = void *;
     using params   = detail::cv ::params<value_type, size_type>;
 
-    static_assert ( std::is_trivially_copyable<Type>::value, "Type must be trivially copyable!" );
+    static_assert ( std::is_trivially_copyable<Type>::value, "Type must be trivially copyable" );
+    static_assert ( default_allocation_size > 0, "Default allocation size must be positive" );
 
     // Construct.
 
     explicit compact_vector ( ) noexcept {}
     compact_vector ( size_type const size_ ) noexcept {
-        void_ptr p = detail::cv::malloc ( sizeof ( params ) + size_ * sizeof ( value_type ) );
-        new ( p ) params{ size_, size_ };
-        m_data = ptr_mem ( p );
+        m_data =
+            ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size_ * sizeof ( value_type ) ) ) params{ size_, size_ } );
         std::for_each ( begin ( ), end ( ),
                         [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
     }
     compact_vector ( compact_vector const & cv_ ) {
         if ( cv_.m_data ) {
-            auto const size = cv_.size ( );
-            void_ptr p      = detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) );
-            new ( p ) params{ size, size };
-            m_data = ptr_mem ( p );
+            size_type const size = cv_.size ( );
+            m_data =
+                ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) ) ) params{ size, size } );
             std::copy ( std::begin ( cv_ ), std::end ( cv_ ), begin ( ) );
         }
     }
@@ -155,9 +154,8 @@ class compact_vector {
                 }
             }
             else {
-                void_ptr p = detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) );
-                m_data     = ptr_mem ( p );
-                new ( p ) params{ size, size };
+                m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) ) )
+                                       params{ size, size } );
             }
             std::copy ( std::begin ( rhs_ ), std::end ( rhs_ ), std::begin ( *this ) );
         }
@@ -194,12 +192,12 @@ class compact_vector {
         if ( m_data ) {
             if ( cap_ > capacity_ref ( ) ) {
                 capacity_ref ( ) = cap_;
-                m_data           = ptr_mem ( detail::cv::realloc ( m_data, sizeof ( params ) + cap_ * sizeof ( value_type ) ) );
+                m_data = ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + cap_ * sizeof ( value_type ) ) );
             }
         }
         else {
-            m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) );
-            new ( m_data ) params{ cap_, 0 };
+            new ( ( m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) ) ) )
+                params{ cap_, 0 };
         }
     }
 
@@ -216,8 +214,8 @@ class compact_vector {
             }
         }
         else {
-            m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) );
-            new ( m_data ) params{ new_size_, new_size_ };
+            new ( ( m_data = ptr_mem ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) ) ) )
+                params{ new_size_, new_size_ };
             std::for_each ( begin ( ), end ( ),
                             [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
         }
@@ -316,16 +314,6 @@ class compact_vector {
 
     // Emplace/Pop.
 
-    private:
-    template<typename... Args>
-    [[maybe_unused]] reference construct ( Args &&... args_ ) {
-        void_ptr const p = detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) );
-        new ( p ) params{ default_allocation_size, 1 };
-        m_data = ptr_mem ( p );
-        assert ( size ( ) < capacity ( ) );
-        return *new ( m_data ) value_type{ std::forward<Args> ( args_ )... };
-    }
-
     public:
     template<typename... Args>
     [[maybe_unused]] reference emplace_back ( Args &&... args_ ) {
@@ -337,11 +325,28 @@ class compact_vector {
             return *new ( m_data + size_ref ( )++ ) value_type{ std::forward<Args> ( args_ )... };
         }
         else { // allocate.
-            return construct ( std::forward<Args> ( args_ )... );
+            return *new ( ( m_data = ptr_mem (
+                                new ( detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) ) )
+                                    params{ default_allocation_size, 1 } ) ) ) value_type{ std::forward<Args> ( args_ )... };
         }
     }
 
-    [[maybe_unused]] reference push_back ( const_reference v_ ) { return emplace_back ( value_type{ v_ } ); }
+    [[maybe_unused]] reference push_back ( const_reference v_ ) {
+        if ( m_data ) {                               // not allocate, maybe relocate.
+            if ( size_ref ( ) == capacity_ref ( ) ) { // relocate.
+                std::cout << "rel" << nl;
+                m_data = ptr_mem (
+                    detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + set_new_capacity ( ) * sizeof ( value_type ) ) );
+            }
+            assert ( size ( ) < capacity ( ) );
+            return *new ( m_data + size_ref ( )++ ) value_type{ v_ };
+        }
+        else { // allocate.
+            return *new ( ( m_data = ptr_mem (
+                                new ( detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) ) )
+                                    params{ default_allocation_size, 1 } ) ) ) value_type{ v_ };
+        }
+    }
 
     void pop_back ( ) noexcept {
         assert ( size_ref ( ) );
@@ -422,7 +427,6 @@ class compact_vector {
         return reinterpret_cast<void_ptr> ( reinterpret_cast<char *> ( mem_ ) - 2 * sizeof ( size_type ) );
     }
     [[nodiscard]] inline pointer ptr_mem ( void_ptr ptr_ ) const noexcept {
-        std::cout << "pa " << pointer_alignment ( ptr_ ) << nl;
         assert ( ptr_ );
         return reinterpret_cast<pointer> ( reinterpret_cast<char *> ( ptr_ ) + 2 * sizeof ( size_type ) );
     }
