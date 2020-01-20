@@ -318,7 +318,7 @@ class compact_vector {
         if ( m_data ) {                             // not allocate, maybe relocate.
             if ( size_ref ( ) == capacity_ref ( ) ) // relocate.
                 m_data = ptr_mem (
-                    detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + set_new_capacity ( ) * sizeof ( value_type ) ) );
+                    detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + grow_capacity ( ) * sizeof ( value_type ) ) );
             assert ( size ( ) < capacity ( ) );
             return *new ( m_data + size_ref ( )++ ) value_type{ std::forward<Args> ( args_ )... };
         }
@@ -349,7 +349,7 @@ class compact_vector {
 
         destructed_after_exit ( value_type & r_ ) noexcept : ref{ r_ } {}
 
-        ~destructed_after_exit ( ) { reference.~Type ( ); }
+        ~destructed_after_exit ( ) { ref.~Type ( ); }
 
         destructed_after_exit ( ) noexcept                      = delete;
         destructed_after_exit ( destructed_after_exit const & ) = delete;
@@ -370,6 +370,13 @@ class compact_vector {
     [[maybe_unused]] value_type unordered_erase ( size_type const i_ ) noexcept {
         destructed_after_exit back{ m_data[ --size_ref ( ) ] };
         return std::exchange ( m_data[ i_ ], back.ref );
+    }
+
+    [[maybe_unused]] value_type unordered_erase ( value_type const & v_ ) noexcept {
+        auto it = std::find ( begin ( ), end ( ), v_ );
+        if ( end ( ) != it )
+            return unordered_erase ( it );
+        return { };
     }
 
     /*
@@ -403,7 +410,7 @@ class compact_vector {
     // Set and return the new (grown) capacity. Needs to be called before realloc, so the
     // new capacity will be set correctly in the newly created memory block. This function
     // implements the MSVC-growth strategy for std::vector.
-    [[maybe_unused]] size_type set_new_capacity ( ) noexcept {
+    [[maybe_unused]] size_type grow_capacity ( ) noexcept {
         size_type c = capacity_ref ( );
         if ( c > 1 ) {
             c                = std::min ( max_allocation_size, c + c / 2 );
