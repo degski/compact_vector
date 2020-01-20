@@ -193,9 +193,9 @@ class compact_vector {
     }
 
     void resize ( size_type new_size_ = 0 ) {
-        auto size = size ( ); // Zero if not cv_malloc'ed.
-        if ( size ) {
-            if ( new_size_ < size ) {
+        auto old_size{ size ( ) }; // Zero if not cv_malloc'ed.
+        if ( old_size ) {
+            if ( new_size_ < old_size ) {
                 size_ref ( ) = new_size_;
                 std::for_each ( begin ( ) + new_size_, end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
                 return;
@@ -210,7 +210,7 @@ class compact_vector {
         else {
             cv_malloc ( new_size_, new_size_ );
         }
-        std::for_each ( begin ( ) + size, end ( ), [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } );
+        std::for_each ( begin ( ) + old_size, end ( ), [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } );
     }
 
     // Access.
