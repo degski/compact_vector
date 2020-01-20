@@ -95,9 +95,17 @@ int main ( ) {
         std::cout << v.size ( ) << nl;
         std::cout << v.capacity ( ) << nl;
 
-        std::cout << v.erase ( 0 ) << nl;
+        std::cout << v.unordered_erase ( 0 ) << nl;
 
         for ( auto i : v )
+            std::cout << i << ' ';
+        std::cout << nl;
+
+        auto w = v;
+
+        std::cout << w.unordered_erase ( 0 ) << nl;
+
+        for ( auto i : w )
             std::cout << i << ' ';
         std::cout << nl;
 

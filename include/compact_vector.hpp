@@ -122,16 +122,14 @@ class compact_vector {
 
     explicit compact_vector ( ) noexcept {}
     compact_vector ( size_type const size_ ) noexcept {
-        m_data =
-            ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size_ * sizeof ( value_type ) ) ) params{ size_, size_ } );
+        cv_malloc ( size_, size_ );
         std::for_each ( begin ( ), end ( ),
                         [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
     }
     compact_vector ( compact_vector const & cv_ ) {
         if ( cv_.m_data ) {
             size_type const size = cv_.size ( );
-            m_data =
-                ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) ) ) params{ size, size } );
+            cv_malloc ( size, size );
             std::copy ( std::begin ( cv_ ), std::end ( cv_ ), begin ( ) );
         }
     }
@@ -147,15 +145,11 @@ class compact_vector {
             if ( m_data ) {
                 for ( auto & v : *this )
                     v.~Type ( );
-                if ( capacity_ref ( ) < size ) {
-                    params_ref ( ) = { size, size };
-                    m_data =
-                        ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + size * sizeof ( value_type ) ) );
-                }
+                if ( capacity_ref ( ) < size )
+                    cv_realloc ( ( params_ref ( ) = { size, size } ).capacity );
             }
             else {
-                m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + size * sizeof ( value_type ) ) )
-                                       params{ size, size } );
+                cv_malloc ( size, size );
             }
             std::copy ( std::begin ( rhs_ ), std::end ( rhs_ ), std::begin ( *this ) );
         }
@@ -191,32 +185,32 @@ class compact_vector {
         cap_ = std::min ( max_allocation_size, cap_ ); // clamp.
         if ( m_data ) {
             if ( cap_ > capacity_ref ( ) )
-                m_data = ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + ( capacity_ref ( ) = cap_ ) *
-                                                                                                     sizeof ( value_type ) ) );
+                cv_realloc ( capacity_ref ( ) = cap_ );
         }
         else {
-            m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) ) params{ cap_, 0 } );
+            cv_malloc ( cap_ );
         }
     }
 
-    void resize ( size_type new_size_ ) { // TODO
-        if ( m_data ) {
-            auto size = size_ref ( );
-            if ( capacity_ref ( ) < new_size_ ) {
-                params_ref ( ) = { new_size_, new_size_ };
-                m_data =
-                    ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + new_size_ * sizeof ( value_type ) ) );
-                std::for_each ( begin ( ) + size, end ( ), [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } );
+    void resize ( size_type new_size_ = 0 ) {
+        auto size = size ( ); // Zero if not cv_malloc'ed.
+        if ( size ) {
+            if ( new_size_ < size ) {
+                size_ref ( ) = new_size_;
+                std::for_each ( begin ( ) + new_size_, end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
+                return;
             }
             else {
+                if ( new_size_ < capacity_ref ( ) )
+                    size_ref ( ) = new_size_;
+                else
+                    cv_realloc ( ( params_ref ( ) = { new_size_, new_size_ } ).capacity );
             }
         }
         else {
-            m_data = ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + new_size_ * sizeof ( value_type ) ) )
-                                   params{ new_size_, new_size_ } );
-            std::for_each ( begin ( ), end ( ),
-                            [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
+            cv_malloc ( new_size_, new_size_ );
         }
+        std::for_each ( begin ( ) + size, end ( ), [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } );
     }
 
     // Access.
@@ -299,7 +293,7 @@ class compact_vector {
 
     // Sizes.
 
-    [[nodiscard]] static constexpr size_type max_capacity ( ) noexcept { return max_allocation_size; }
+    [[nodiscard]] static constexpr size_type max_size ( ) noexcept { return max_allocation_size; }
 
     [[nodiscard]] inline size_type capacity ( ) const noexcept {
         return m_data ? *reinterpret_cast<size_type *> ( reinterpret_cast<char *> ( m_data ) - 2 * sizeof ( size_type ) ) : 0;
@@ -317,15 +311,12 @@ class compact_vector {
     [[maybe_unused]] reference emplace_back ( Args &&... args_ ) {
         if ( m_data ) {                             // not allocate, maybe relocate.
             if ( size_ref ( ) == capacity_ref ( ) ) // relocate.
-                m_data = ptr_mem (
-                    detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + grow_capacity ( ) * sizeof ( value_type ) ) );
+                cv_realloc ( grow_capacity ( ) );
             assert ( size ( ) < capacity ( ) );
             return *new ( m_data + size_ref ( )++ ) value_type{ std::forward<Args> ( args_ )... };
         }
         else { // allocate.
-            return *new ( ( m_data = ptr_mem (
-                                new ( detail::cv::malloc ( sizeof ( params ) + default_allocation_size * sizeof ( value_type ) ) )
-                                    params{ default_allocation_size, 1 } ) ) ) value_type{ std::forward<Args> ( args_ )... };
+            return *new ( cv_malloc ( default_allocation_size, 1 ) ) value_type{ std::forward<Args> ( args_ )... };
         }
     }
 
@@ -372,7 +363,7 @@ class compact_vector {
         return std::exchange ( m_data[ i_ ], back.ref );
     }
 
-    [[maybe_unused]] value_type unordered_erase ( value_type const & v_ ) noexcept {
+    [[maybe_unused]] value_type unordered_erase_v ( value_type const & v_ ) noexcept {
         auto it = std::find ( begin ( ), end ( ), v_ );
         if ( end ( ) != it )
             return unordered_erase ( it );
@@ -407,6 +398,15 @@ class compact_vector {
     }
 
     private:
+    [[maybe_unused]] pointer cv_realloc ( size_type cap_ ) {
+        return m_data = ptr_mem ( detail::cv::realloc ( mem_ptr ( m_data ), sizeof ( params ) + cap_ * sizeof ( value_type ) ) );
+    }
+
+    [[maybe_unused]] pointer cv_malloc ( size_type cap_, size_type siz_ = 0 ) {
+        return m_data =
+                   ptr_mem ( new ( detail::cv::malloc ( sizeof ( params ) + cap_ * sizeof ( value_type ) ) ) params{ cap_, siz_ } );
+    }
+
     // Set and return the new (grown) capacity. Needs to be called before realloc, so the
     // new capacity will be set correctly in the newly created memory block. This function
     // implements the MSVC-growth strategy for std::vector.
