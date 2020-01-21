@@ -70,9 +70,9 @@ void emplace_back_random ( typename Container::size_type range_ ) noexcept {
 }
 
 void test_eb ( ) {
-    using Con = sax::compact_vector<int, int>;
+    using Con = sax::compact_vector<int, std::int32_t>;
     for ( int r = 0; r < 1'000; r++ )
-        for ( int i = 4; i <= 65'536 * 64; i <<= 2 )
+        for ( int i = 4; i <= 65'536; i <<= 2 )
             emplace_back_random<Con> ( i );
 }
 
@@ -81,7 +81,8 @@ int main ( ) {
     std::exception_ptr eptr;
     try {
 
-        sax::compact_vector<int> v;
+        /*
+        sax::compact_vector<int, std::int64_t, 4> v;
 
         v.push_back ( 1 );
         v.push_back ( 11 );
@@ -108,8 +109,9 @@ int main ( ) {
         for ( auto i : w )
             std::cout << i << ' ';
         std::cout << nl;
+        */
 
-        // test_eb ( );
+        test_eb ( );
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.

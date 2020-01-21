@@ -115,7 +115,6 @@ class compact_vector {
     using void_ptr = void *;
     using params   = detail::cv ::params<value_type, size_type>;
 
-    static_assert ( std::is_trivially_copyable<Type>::value, "Type must be trivially copyable" );
     static_assert ( default_allocation_size > 0, "Default allocation size must be positive" );
 
     // Construct.
