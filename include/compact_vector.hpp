@@ -180,6 +180,8 @@ class compact_vector {
         }
     }
 
+    [[nodiscard]] bool is_released ( ) const noexcept { return not m_data; }
+
     void reserve ( size_type cap_ ) {
         cap_ = std::min ( max_allocation_size, cap_ ); // clamp.
         if ( m_data ) {
