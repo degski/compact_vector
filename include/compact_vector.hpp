@@ -391,8 +391,9 @@ class compact_vector {
 
     template<typename Stream>
     [[maybe_unused]] friend Stream & operator<< ( Stream & out_, compact_vector const & m_ ) noexcept {
-        for ( auto const & e : m_ )
-            out_ << e << sp; // A wide- or narrow-string space, as appropriate.
+        if ( m_.data ( ) )
+            for ( auto const & e : m_ )
+                out_ << e << sp; // A wide- or narrow-string space, as appropriate.
         return out_;
     }
 

@@ -81,37 +81,31 @@ int main ( ) {
     std::exception_ptr eptr;
     try {
 
-        /*
         sax::compact_vector<int, std::int64_t, 4> v;
+
+        std::cout << v << nl;
 
         v.push_back ( 1 );
         v.push_back ( 11 );
         v.push_back ( 111 );
         v.push_back ( 1111 );
 
-        for ( auto i : v )
-            std::cout << i << ' ';
-        std::cout << nl;
+        std::cout << v << nl;
 
         std::cout << v.size ( ) << nl;
         std::cout << v.capacity ( ) << nl;
 
         std::cout << v.unordered_erase ( 0 ) << nl;
 
-        for ( auto i : v )
-            std::cout << i << ' ';
-        std::cout << nl;
+        std::cout << v << nl;
 
         auto w = v;
 
         std::cout << w.unordered_erase ( 0 ) << nl;
 
-        for ( auto i : w )
-            std::cout << i << ' ';
-        std::cout << nl;
-        */
+        std::cout << w << nl;
 
-        test_eb ( );
+        // test_eb ( );
     }
     catch ( ... ) {
         eptr = std::current_exception ( ); // Capture.
