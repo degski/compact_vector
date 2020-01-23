@@ -132,9 +132,12 @@ class compact_vector {
             std::copy ( std::begin ( cv_ ), std::end ( cv_ ), begin ( ) );
         }
     }
-    compact_vector ( compact_vector && cv_ ) noexcept { swap ( cv_ ); }
+    compact_vector ( compact_vector && cv_ ) noexcept {
+        if ( cv_.m_data )
+            m_data = std::exchange ( cv_.m_data, nullptr );
+    }
 
-    ~compact_vector ( ) noexcept { release ( ); }
+    ~compact_vector ( ) noexcept { reset ( ); }
 
     // Assignment.
 
@@ -153,13 +156,14 @@ class compact_vector {
             std::copy ( std::begin ( rhs_ ), std::end ( rhs_ ), std::begin ( *this ) );
         }
         else {
-            release ( );
+            reset ( );
         }
         return *this;
     }
 
     [[maybe_unused]] compact_vector & operator= ( compact_vector && rhs_ ) noexcept {
-        swap ( rhs_ );
+        reset ( rhs_.m_data );
+        rhs_.m_data = nullptr;
         return *this;
     }
 
@@ -172,12 +176,12 @@ class compact_vector {
         }
     }
 
-    void release ( ) noexcept {
+    void reset ( pointer p_ = nullptr ) noexcept {
         if ( m_data ) {
             std::for_each ( begin ( ), end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
             detail::cv::free ( mem_ptr ( m_data ) );
-            m_data = nullptr;
         }
+        m_data = p_;
     }
 
     [[nodiscard]] bool is_released ( ) const noexcept { return not m_data; }
