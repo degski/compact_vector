@@ -81,7 +81,12 @@ int main ( ) {
     std::exception_ptr eptr;
     try {
 
-        sax::compact_vector<int, std::int64_t, 4> v;
+        using cvec = sax::compact_vector<int, std::int64_t, 4>;
+
+        cvec v;
+
+        static_assert ( std::is_copy_assignable<cvec>::value, "Is not copy assignable" );
+        static_assert ( std::is_move_assignable<cvec>::value, "Is not move assignable" );
 
         std::cout << v << nl;
 
@@ -99,7 +104,10 @@ int main ( ) {
 
         std::cout << v << nl;
 
-        auto w = v;
+        sax::compact_vector<int, std::int64_t, 4> x;
+        x = v;
+        sax::compact_vector<int, std::int64_t, 4> w;
+        w = std::move ( x );
 
         std::cout << w.unordered_erase ( 0 ) << nl;
 

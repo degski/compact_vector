@@ -119,13 +119,16 @@ class compact_vector {
 
     // Construct.
 
-    explicit compact_vector ( ) noexcept {}
+    explicit compact_vector ( ) noexcept {
+        // std::cout << "default construct" << nl;
+    }
     compact_vector ( size_type const size_ ) noexcept {
         cv_malloc ( size_, size_ );
         std::for_each ( begin ( ), end ( ),
                         [] ( value_type & value_ref ) { new ( &value_ref ) value_type{ }; } ); // default construct values.
     }
     compact_vector ( compact_vector const & cv_ ) {
+        // std::cout << "copy construct" << nl;
         if ( cv_.m_data ) {
             size_type const size = cv_.size ( );
             cv_malloc ( size, size );
@@ -133,6 +136,7 @@ class compact_vector {
         }
     }
     compact_vector ( compact_vector && cv_ ) noexcept {
+        // std::cout << "move construct" << nl;
         if ( cv_.m_data )
             m_data = std::exchange ( cv_.m_data, nullptr );
     }
@@ -142,6 +146,7 @@ class compact_vector {
     // Assignment.
 
     [[maybe_unused]] compact_vector & operator= ( compact_vector const & rhs_ ) {
+        // std::cout << "copy assign" << nl;
         if ( rhs_.m_data ) {
             auto const size = rhs_.size_ref ( );
             if ( m_data ) {
@@ -162,8 +167,8 @@ class compact_vector {
     }
 
     [[maybe_unused]] compact_vector & operator= ( compact_vector && rhs_ ) noexcept {
-        reset ( rhs_.m_data );
-        rhs_.m_data = nullptr;
+        // std::cout << "move assign" << nl;
+        reset ( rhs_ );
         return *this;
     }
 
@@ -177,7 +182,7 @@ class compact_vector {
     }
 
     // Low-level, needs to be used with zap ( ).
-    void reset ( pointer p_ = nullptr ) noexcept {
+    void reset ( pointer const & p_ = nullptr ) noexcept {
         if ( m_data ) {
             std::for_each ( begin ( ), end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
             detail::cv::free ( mem_ptr ( m_data ) );
@@ -185,7 +190,9 @@ class compact_vector {
         m_data = p_;
     }
 
-    void reset ( compact_vector const & cv_ ) noexcept {
+    void zap ( ) noexcept { m_data = nullptr; }
+
+    void reset ( compact_vector & cv_ ) noexcept {
         reset ( cv_.m_data );
         cv_.zap ( );
     }
