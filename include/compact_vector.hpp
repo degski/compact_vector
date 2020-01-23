@@ -184,6 +184,8 @@ class compact_vector {
         m_data = p_;
     }
 
+    void reset ( compact_vector const & cv_ ) noexcept { return reset ( cv_.m_data ); }
+
     [[nodiscard]] bool is_released ( ) const noexcept { return not m_data; }
 
     void reserve ( size_type cap_ ) {
