@@ -176,6 +176,7 @@ class compact_vector {
         }
     }
 
+    // Low-level, needs to be used with zap ( ).
     void reset ( pointer p_ = nullptr ) noexcept {
         if ( m_data ) {
             std::for_each ( begin ( ), end ( ), [] ( value_type & value_ref ) { value_ref.~Type ( ); } );
@@ -184,7 +185,10 @@ class compact_vector {
         m_data = p_;
     }
 
-    void reset ( compact_vector const & cv_ ) noexcept { return reset ( cv_.m_data ); }
+    void reset ( compact_vector const & cv_ ) noexcept {
+        reset ( cv_.m_data );
+        cv_.zap ( );
+    }
 
     [[nodiscard]] bool is_released ( ) const noexcept { return not m_data; }
 
