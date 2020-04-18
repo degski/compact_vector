@@ -34,6 +34,7 @@
 #include <utility>
 
 // Costumization point.
+
 #ifndef USE_MIMALLOC
 #    define USE_MIMALLOC true
 #    ifndef USE_MIMALLOC_LTO
@@ -50,7 +51,7 @@ namespace sax {
 
 namespace detail::cv {
 
-#if USE_MIMALLOC
+#if not USE_MIMALLOC
 [[nodiscard]] inline void * malloc ( std::size_t size_ ) noexcept { return mi_malloc ( size_ ); }
 [[nodiscard]] inline void * zalloc ( std::size_t size_ ) noexcept { return mi_zalloc ( size_ ); }
 [[nodiscard]] inline void * calloc ( std::size_t num_, std::size_t size_ ) noexcept { return mi_calloc ( num_, size_ ); }
@@ -382,9 +383,11 @@ class compact_vector {
     }
 
     [[maybe_unused]] value_type unordered_erase_v ( value_type const & v_ ) noexcept {
-        auto it = std::find ( begin ( ), end ( ), v_ );
-        if ( end ( ) != it )
-            return unordered_erase ( it );
+        if ( m_data ) {
+            auto it = std::find ( begin ( ), end ( ), v_ );
+            if ( end ( ) != it )
+                return unordered_erase ( it );
+        }
         return { };
     }
 
@@ -475,10 +478,6 @@ class compact_vector {
     }
 
     // Pointer alignment.
-    static inline int pointer_alignment ( void_ptr ptr_ ) noexcept {
-        return ( int ) ( ( std::uintptr_t ) ptr_ & ( std::uintptr_t ) - ( ( std::intptr_t ) ptr_ ) );
-    }
-
     pointer m_data = nullptr;
 };
 
